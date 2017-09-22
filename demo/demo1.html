@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>一个简单立方体的旋转效果</title>
+    <meta charset="utf-8" />
+    <style>
+        body {
+            background-color: #f0f0f0;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 500px;
+            height: 500px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <script src="../libs/three.js"></script>
+    <script>
+        var container = document.getElementById('container');
+
+        var scene = new THREE.Scene();
+
+        // 立方体
+        var geometry = new THREE.BoxGeometry(500, 500, 500);
+        // 上色
+        for (var i = 0; i < geometry.faces.length; i += 2) {
+            var hex = Math.random() * 0xffffff;
+            geometry.faces[i].color.setHex(hex);
+            geometry.faces[i + 1].color.setHex(hex);
+        }
+        // 材质
+        var material = new THREE.MeshBasicMaterial({
+            vertexColors: THREE.FaceColors,
+            overdraw: 0.5
+        });
+        var cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+
+        // 相机
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100000);
+        camera.position.z = 1500;
+
+        // 渲染器
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        //renderer.render(scene, camera);
+        animate();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            cube.rotation.x += 0.005;
+            cube.rotation.y += 0.005;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', function () {
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+        }, false);
+    </script>
+
+</body>
+
+</html>
