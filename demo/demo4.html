@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>粒子动画-粒子人像坍塌和立起</title>
+    <meta charset="utf-8" />
+    <style>
+        body {
+            font-family: Monospace;
+            background-color: #f0f0f0;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 500px;
+            height: 500px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <script src="../libs/three.js"></script>
+    <script src="../libs/loaders/BinaryLoader.js"></script>
+    <script>
+        var container = document.getElementById('container');
+
+        var camera, scene, renderer, mesh;
+
+        var dynamicData = {};
+
+        // var p;
+
+        var clock = new THREE.Clock();
+
+        init();
+
+        function init() {
+            camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 50000);
+            camera.position.set(50, 50, 3600);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000104);
+
+            camera.lookAt(scene.position);
+
+            var loader = new THREE.BinaryLoader();
+            loader.load('obj/female02/Female02_bin.js', (geometry) => {
+                createMesh(geometry, 6, 0, -550, 0, 0xff7744);
+
+                animate();
+            });
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: false
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.autoClear = false;
+            container.appendChild(renderer.domElement);
+
+
+        }
+
+        /**
+        * oGeometry: 模型数据
+        * scale: 比例尺值
+        * x, y, z: 模型放置位置
+        * color: 模型材料颜色
+        */
+        function createMesh(oGeometry, scale, x, y, z, color) {
+            var vertices = oGeometry.vertices;
+            var vl = vertices.length;
+            var vertices_tmp = [];
+            
+            for (var i = 0; i < vl; i++) {
+                var p = vertices[i];
+                oGeometry.vertices[i] = p.clone();
+                // 记录每个点的原坐标位置，后面两个值分别表示是否已经down/up
+                vertices_tmp[i] = [p.x, p.y, p.z, 0, 0];
+
+                // Geometry内的每个点可以通过colors属性单独设置颜色
+                // 只有PointsMaterial的vertexColors配置项值设置成THREE.VertexColors,点的颜色才会生效；同时建议把PointsMaterial属性的color配置去掉
+                // oGeometry.colors.push(new THREE.Color(0, 1, 0));
+            }
+
+            
+            
+            mesh = new THREE.Points(oGeometry, new THREE.PointsMaterial({
+                size: 30,
+                color,
+                // vertexColors: THREE.VertexColors,
+            }));
+            mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
+
+            mesh.position.x = x;
+            mesh.position.y = y;
+            mesh.position.z = z;
+
+            scene.add(mesh);
+
+            // 记录后面动画可能使用到的数据
+            dynamicData = {
+                mesh: mesh,
+                vertices: oGeometry.vertices,
+                vertices_tmp: vertices_tmp,
+                length: vl,
+                down: 0, // down的粒子数
+                up: 0, // up的粒子数
+                direction: 0, // 方向，-1(up)，1(down)
+                speed: 35,
+                delay: Math.floor(200 + 200 * Math.random()), // up或down动画间的间隔
+                started: false,
+                start: Math.floor(100 + 200 * Math.random()), // 第一此动画开始前的延迟
+            };
+                 
+            // 注：delay/start值的含义是16.67ms的次数；为什么是16.67ms？这是因为requestAnimationFrame的执行频率是60次/秒
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            render();
+        }
+
+        function render() {
+            var delta = 10 * clock.getDelta();
+            delta = delta < 2 ? delta : 2;
+            mesh.rotation.y += -0.02 * delta;
+
+            pointsAnimation(dynamicData, delta);
+
+            renderer.clear();
+            renderer.render(scene, camera);
+        }
+
+        /**
+        data: 粒子数据
+        delta: 时间间隔
+        */
+        function pointsAnimation(data, delta) {
+            var mesh = data.mesh;
+            var vertices = data.vertices;
+            var vertices_tmp = data.vertices_tmp;
+            var vl = data.length;
+
+            // 初入页面的动画延迟计时
+            if (data.start > 0) {
+                data.start -= 1;
+            } else {
+                if (!data.started) {
+                    data.direction = -1;
+                    data.started = true;
+                }
+            }
+
+            for (var i = 0; i < vl; i++) {
+                var p = vertices[i];
+                var vt = vertices_tmp[i];
+
+                // 向下运动
+                if (data.direction < 0) {
+                    if (p.y > 0) {
+                        p.x += 1.5 * (0.50 - Math.random()) * data.speed * delta;
+                        p.y += 3.0 * (0.25 - Math.random()) * data.speed * delta;
+                        p.z += 1.5 * (0.50 - Math.random()) * data.speed * delta;
+                    } else {
+                        if (!vt[3]) {
+                            vt[3] = 1;
+                            data.down += 1;
+                        }
+                    }
+                }
+
+                // 向上运动
+                if (data.direction > 0) {
+                    var d = Math.abs(p.x - vt[0]) + Math.abs(p.y - vt[1]) + Math.abs(p.z - vt[2]);
+                    if (d > 1) {
+                        p.x += -(p.x - vt[0]) / d * data.speed * delta * (0.85 - Math.random());
+                        p.y += -(p.y - vt[1]) / d * data.speed * delta * (1 + Math.random());
+                        p.z += -(p.z - vt[2]) / d * data.speed * delta * (0.85 - Math.random());
+                    } else {
+                        if (!vt[4]) {
+                            vt[4] = 1;
+                            data.up += 1;
+                        }
+                    }
+                }
+
+                
+                
+            }
+
+            // 全部坍塌 
+            if (data.down === vl) {
+                if (data.delay === 0) {
+                    data.direction = 1;
+                    data.speed = 10;
+                    data.down = 0;
+                    data.delay = 360;
+                    for (var i = 0; i < vl; i++) {
+                        vertices_tmp[i][3] = 0;
+                    }
+                } else {
+                    data.delay -= 1;
+                }
+            }
+
+            // 模型构建完成
+            if (data.up === vl) {
+                if (data.delay === 0) {
+                    data.direction = -1;
+                    data.speed = 35;
+                    data.up = 0;
+                    data.delay = 120;
+
+                    for (var i = 0; i < vl; i++) {
+                        vertices_tmp[i][4] = 0;
+                    }
+                } else {
+                    data.delay -= 1;
+                }
+            }
+            
+            // 只有将下面的值设置为true，点的坐标数据被改变后才会生效
+            mesh.geometry.verticesNeedUpdate = true;
+
+            // 如果粒子颜色被改变请将下面的值设置为true，否则不生效
+            // mesh.geometry.colorsNeedUpdate = true;
+
+        }
+    </script>
+
+</body>
+
+</html>
